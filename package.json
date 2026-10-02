@@ -1,0 +1,19 @@
+{
+  "name": "frame-local-ffmpeg",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A private, local FFmpeg workbench",
+  "scripts": {
+    "start": "node server/app.mjs",
+    "dev": "node --watch server/app.mjs",
+    "test": "node --test test/operations.test.mjs test/storage.test.mjs test/reveal.test.mjs test/native-bridge.test.mjs test/replacement-options.test.mjs",
+    "test:integration": "node test/integration.mjs",
+    "test:cover": "node test/cover.integration.mjs",
+    "test:native-http": "node test/native-http.integration.mjs",
+    "native:build": "node scripts/native-bridge.mjs build",
+    "native:install": "node scripts/native-bridge.mjs install",
+    "native:uninstall": "node scripts/native-bridge.mjs uninstall"
+  },
+  "engines": { "node": ">=20" }
+}

@@ -1,0 +1,27 @@
+# Local settings, history, imports, previews and native helper credentials/builds
+/.data/
+/outputs/
+
+# Generated test media and verification artifacts
+/test/fixtures/
+/test/results/
+
+# Original-media backups and temporary export/replacement files at any depth
+.frame-backups/
+.frame-*
+
+# Dependencies and development output
+node_modules/
+coverage/
+*.log
+
+# Local environment variables (allow explicitly named example templates)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

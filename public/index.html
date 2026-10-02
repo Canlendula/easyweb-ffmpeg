@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f5f5f1"><title>Frame · 本地视频工作台</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/styles.css"></head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Frame 首页"><img src="/favicon.svg" width="35" height="35" alt=""><span>frame<span class="brand-dot">.</span><small>本地视频工作台</small></span></a>
+    <div class="sidebar-label">你的媒体工具箱 <span id="tool-count">09</span></div>
+    <nav id="tools" aria-label="视频处理工具"></nav>
+    <div class="sidebar-bottom"><div class="local-note"><span class="local-symbol" data-icon="shield"></span><strong>只在你的电脑上</strong><p>本机处理，素材无需上传云端。</p></div><button class="engine-status" id="engine-status"><span class="status-dot"></span><span>正在检测 FFmpeg…</span><span data-icon="chevron"></span></button><div class="version-line">LOCAL FIRST <span>v1.0</span></div></div>
+  </aside>
+  <div class="app-shell">
+    <header class="topbar"><div class="breadcrumb">工作台 <span data-icon="chevron"></span><strong id="breadcrumb-title">视频裁剪</strong></div><div class="top-actions"><span class="local-badge"><i></i> 本地运行</span><button class="button ghost" id="queue-button"><span data-icon="queue"></span> 任务队列 <span id="queue-count" class="count">0</span></button><button class="icon-button" id="settings-button" title="设置" aria-label="设置"><span data-icon="settings"></span></button></div></header>
+    <main>
+      <div class="page-heading"><div><div class="eyebrow">LESS COMMANDS. MORE CREATING.</div><h1 id="page-title">留下你想要的片段<span>。</span></h1><p id="page-description">拖动时间轴，轻松截取视频。剩下的，交给 FFmpeg。</p></div><button class="button ghost help-button" id="help-button"><span data-icon="help"></span> 使用指南</button></div>
+      <div id="system-alert" class="system-alert" hidden></div>
+      <section class="source-bar" aria-label="素材"><div class="source-icon" data-icon="film"></div><div class="source-summary"><strong id="source-title">从一个视频开始</strong><span id="source-detail">直接读取本地文件，保留原始素材</span></div><div class="source-actions"><button class="button" id="path-button"><span data-icon="terminal"></span><span class="wide-label">粘贴路径</span></button><button class="button dark" id="browse-button"><span data-icon="plus"></span> 添加素材</button></div></section>
+      <section id="file-list" class="file-list" aria-label="已添加素材" hidden></section>
+      <div class="workspace">
+        <section class="editing-panel">
+          <div class="panel-caption"><span><i class="tiny-dot"></i> 素材预览</span><span id="preview-meta">等待添加素材</span></div>
+          <section id="cover-comparison" class="cover-comparison" aria-label="封面对照" hidden></section>
+          <div class="preview-stage" id="drop-zone">
+            <div class="stage-grid"></div>
+            <video id="video" playsinline preload="metadata" hidden></video>
+            <audio id="audio" preload="metadata" hidden></audio>
+            <img id="fallback-image" alt="视频画面" hidden>
+            <div class="empty-stage" id="empty-stage"><div class="empty-art"><span class="art-corner corner-tl"></span><span class="art-corner corner-tr"></span><span class="art-corner corner-bl"></span><span class="art-corner corner-br"></span><span data-icon="play"></span></div><h2>让素材就位</h2><p>从本机选择文件，即可开始编辑</p><button class="button light" id="stage-browse"><span data-icon="folder"></span> 浏览本地文件</button><small>或拖入文件 · MP4 / MOV / MKV / WEBM 等</small></div>
+            <div id="audio-stage" class="audio-stage" hidden><span data-icon="audio"></span><h2>专注声音</h2><p>音频素材已就位</p></div>
+            <div id="preview-error" class="preview-error" hidden><p>浏览器暂不支持这个编码，仍可正常导出。</p><button id="proxy-button" class="button light">生成兼容预览</button><small id="proxy-status">会在本机生成低清预览副本</small></div>
+            <div class="stage-label" id="stage-label">ORIGINAL PREVIEW</div>
+          </div>
+          <div class="player-controls"><div class="playback-left"><button class="icon-button" id="play-button" aria-label="播放 / 暂停" disabled><span data-icon="play"></span></button><span class="time-display"><b id="current-time">00:00.000</b><span>/</span><span id="total-time">00:00.000</span></span></div><div class="playback-right"><button class="text-button" id="set-start" title="将播放位置设为起点" disabled>设为起点 <kbd>I</kbd></button><button class="text-button" id="set-end" title="将播放位置设为终点" disabled>设为终点 <kbd>O</kbd></button><button class="icon-button" id="fullscreen" aria-label="全屏预览" disabled><span data-icon="expand"></span></button></div></div>
+          <input id="seek-range" type="range" min="0" max="0" step="0.01" value="0" aria-label="预览播放位置" hidden>
+          <div class="timeline-section" id="timeline-section"><div class="section-heading"><h3>选择片段</h3><button class="text-button" id="reset-range">重置选区 <span data-icon="refresh"></span></button></div><div class="timeline-ruler" id="timeline-ruler"></div><div class="timeline" id="timeline"><div class="filmstrip" id="filmstrip"></div><div class="range-shade left" id="shade-left"></div><div class="range-shade right" id="shade-right"></div><div class="range-selection" id="range-selection"></div><button class="trim-handle start" id="handle-start" role="slider" aria-label="片段开始时间" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"><i></i><i></i></button><button class="trim-handle end" id="handle-end" role="slider" aria-label="片段结束时间" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"><i></i><i></i></button><div id="playhead" class="playhead"></div></div><div class="timeline-legend"><span><i></i> 保留区域</span><span id="selection-duration">添加素材后选择片段</span></div><div class="range-fields"><label>开始时间<div class="input-with-unit"><input id="start-time" aria-label="开始时间" value="00:00.000" spellcheck="false"><span>IN</span></div></label><div class="range-arrow" data-icon="arrow"></div><label>结束时间<div class="input-with-unit"><input id="end-time" aria-label="结束时间" value="00:00.000" spellcheck="false"><span>OUT</span></div></label></div><div class="quick-trim"><span>快捷裁剪</span><select id="quick-mode" aria-label="快捷裁剪方式"><option value="drop-start">裁掉开头</option><option value="drop-end">裁掉结尾</option><option value="keep-start">只保留开头</option><option value="keep-end">只保留结尾</option></select><input id="quick-seconds" type="number" value="5" min="0.04" step="0.1" aria-label="快捷裁剪秒数"><span>秒</span><button class="text-button" id="quick-apply">应用 <span data-icon="arrow"></span></button></div></div>
+          <div class="media-details" id="media-details" hidden></div>
+          <div class="workflow-note"><span data-icon="shield"></span><p>每次处理都生成新文件。完成后可改名替换原素材，并选择保留备份或直接覆盖。</p></div>
+        </section>
+        <aside class="inspector"><div class="inspector-header"><h2>导出设置</h2><span class="step-label">MAKE IT YOURS</span></div><div id="operation-options" class="operation-options"></div><div class="output-settings"><div class="section-heading"><h3>保存到哪里</h3><span data-icon="folder"></span></div><label class="field-label" for="output-name">文件名称</label><div class="input-with-unit"><input id="output-name" placeholder="自动生成名称" spellcheck="false"><span id="output-extension">.mp4</span></div><label class="field-label" for="output-dir">输出目录<button id="choose-output" class="text-button">更改</button></label><input id="output-dir" class="directory-input" spellcheck="false" aria-label="输出目录"><p class="field-hint">同名文件自动另存，不会覆盖。</p></div><div id="plan-warnings" class="plan-warnings"></div><div class="export-footer"><div class="export-estimate"><span>导出时长</span><strong id="export-duration">—</strong></div><button class="button primary export-button" id="export-button" disabled><span data-icon="download"></span><span>开始处理</span><span data-icon="arrow"></span></button><div class="export-local"><span data-icon="cpu"></span><span id="encoder-description">由本机 FFmpeg 处理</span></div></div></aside>
+      </div>
+      <details class="command-panel" id="command-panel"><summary><span data-icon="terminal"></span> 看看背后的 FFmpeg 命令 <span class="command-hint">随时了解实际执行的操作</span><span data-icon="down"></span></summary><div class="command-content"><div class="command-toolbar"><span id="command-shell">命令预览</span><button class="text-button" id="copy-command"><span data-icon="copy"></span> 复制命令</button></div><pre id="command-text">添加素材后，这里会显示对应的 FFmpeg 命令。</pre><div id="command-extras"></div></div></details>
+      <footer class="page-footer"><span>小工具，大有可为。</span><span>POWERED BY FFMPEG <i>·</i> MADE FOR YOUR LOCAL FILES</span></footer>
+    </main>
+  </div>
+  <dialog id="modal"><div id="modal-content"></div></dialog>
+  <dialog id="queue-dialog" class="queue-dialog"><div class="modal-header"><div><div class="eyebrow">YOUR RECENT EXPORTS</div><h2>任务队列</h2></div><div class="queue-heading-actions"><button class="button" id="storage-button"><span data-icon="trash"></span> 清理空间</button><button class="icon-button" id="close-queue" aria-label="关闭任务队列"><span data-icon="close"></span></button></div></div><p class="modal-subtitle">按顺序使用本机资源处理。任务卡片显示文件的当前保存位置。</p><div id="jobs-list"></div></dialog>
+  <div id="toast" class="toast" popover="manual" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+  <input id="upload-input" type="file" accept="video/*,audio/*,.mkv,.mts,.m2ts,.mka,.flac,.ts" multiple hidden>
+  <input id="cover-upload-input" type="file" accept="image/png,image/jpeg,.jpg,.jpeg,.png" hidden>
+  <script type="module" src="/app.js"></script>
+</body></html>
