@@ -1,5 +1,6 @@
 import { originalContainer, trimPresetDefaults } from '../public/trim-presets.js';
 import { coverOperation } from './cover.mjs';
+import { volumeOperation } from './volume.mjs';
 
 export class InputError extends Error { constructor(message) { super(message); this.status = 400; } }
 const fail = message => { throw new InputError(message); };
@@ -50,6 +51,7 @@ const aac = ['-c:a', 'aac', '-b:a', '192k'];
 export function buildOperation(spec, files, encoders, { concatPath = 'concat.ffconcat', cover, attachmentPath = index => `attachment-${index}.bin` } = {}) {
   if (!files.length) fail('请先选择素材');
   if (spec.operation === 'cover') return coverOperation(files[0], cover, fail, attachmentPath);
+  if (spec.operation === 'volume') return volumeOperation(files[0], spec.options || {}, fail);
   const operation = choose(spec.operation, ['trim', 'transcode', 'concat', 'audio', 'resize', 'gif', 'snapshot', 'remux'], '操作');
   const file = files[0];
   let o = spec.options || {};

@@ -105,6 +105,7 @@ async function prepare(spec, id = randomUUID()) {
   if (spec.operation !== 'concat' && !(spec.operation === 'audio' && spec.options?.action === 'replace') && files.length !== 1) throw new InputError('此操作请选择一个素材');
   const cover = spec.operation === 'cover' ? covers.get(spec.options?.coverId) : null;
   const operation = buildOperation(spec, files, ffmpeg.status.encoders, { concatPath: path.join(DATA, 'work', `${id}.ffconcat`), cover, attachmentPath: index => path.join(DATA, 'work', `${id}-attachment-${index}.bin`) });
+  if (id !== 'preview' && operation.volume?.requiresConfirmation && spec.options?.riskAcknowledged !== true) throw new InputError('请确认已了解当前音量设置的影响后再处理');
   const outputDir = localPath(spec.outputDir || settings.outputDir);
   const defaultName = `${path.parse(files[0].name).name}_${spec.operation}`;
   let name = safeName(spec.outputName || defaultName);
@@ -343,7 +344,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (route === '/api/preview-command' && req.method === 'POST') {
       const plan = await prepare(await body(req), 'preview');
-      json(res, { command: plan.command, warnings: plan.warnings, outputPath: plan.outputPath, extension: plan.extension, encoder: plan.encoder, duration: plan.duration, extraFiles: plan.extraFiles, preCommands: (plan.preprocess || []).map(step => displayCommand(ffmpeg.path, ['-v', 'error', '-nostdin', '-n', ...step.args])), estimatedSize: plan.estimatedSize }); return;
+      json(res, { command: plan.command, warnings: plan.warnings, outputPath: plan.outputPath, extension: plan.extension, encoder: plan.encoder, duration: plan.duration, extraFiles: plan.extraFiles, preCommands: (plan.preprocess || []).map(step => displayCommand(ffmpeg.path, ['-v', 'error', '-nostdin', '-n', ...step.args])), estimatedSize: plan.estimatedSize, volume: plan.volume }); return;
     }
     if (route === '/api/jobs' && req.method === 'GET') { json(res, jobs.slice(-100).reverse().map(publicJob)); return; }
     if (route === '/api/jobs' && req.method === 'POST') {
@@ -428,7 +429,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (route.startsWith('/api/')) { json(res, { error: '接口不存在' }, 404); return; }
     if (!['GET', 'HEAD'].includes(req.method)) { json(res, { error: '不支持此请求' }, 405); return; }
-    const staticFiles = { '/': 'index.html', '/app.js': 'app.js', '/trim-presets.js': 'trim-presets.js', '/styles.css': 'styles.css', '/icons.js': 'icons.js', '/favicon.svg': 'favicon.svg' };
+    const staticFiles = { '/': 'index.html', '/app.js': 'app.js', '/trim-presets.js': 'trim-presets.js', '/volume-options.js': 'volume-options.js', '/styles.css': 'styles.css', '/icons.js': 'icons.js', '/favicon.svg': 'favicon.svg' };
     if (!staticFiles[route]) { res.writeHead(404); res.end('Not found'); return; }
     await sendFile(req, res, path.join(PUBLIC, staticFiles[route]));
   } catch (err) {

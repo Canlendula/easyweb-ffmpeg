@@ -1,5 +1,6 @@
 import { icon } from './icons.js';
 import { originalContainer, sourceVideoRate, trimPresetDefaults } from './trim-presets.js';
+import { VOLUME_PRESETS, volumeSettings, volumeAudioFormat, volumeVideoFormat } from './volume-options.js';
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7,7 +8,8 @@ const tools = [
   { id: 'trim', name: '视频裁剪', icon: 'cut', title: '留下你想要的片段', desc: '拖动时间轴，轻松截取视频。剩下的，交给 FFmpeg。' },
   { id: 'transcode', name: '转码与压缩', icon: 'convert', title: '让视频，适配下一站', desc: '选择编码和画质，用本机 CPU 或显卡完成转换。' },
   { id: 'concat', name: '视频拼接', icon: 'merge', title: '把片段，连成完整故事', desc: '添加多个视频，调整顺序，一次导出。' },
-  { id: 'audio', name: '音频工具', icon: 'audio', title: '声音，也可以单独处理', desc: '提取音频、移除声音、调整音量，或换上一条新音轨。' },
+  { id: 'audio', name: '音轨工具', icon: 'audio', title: '提取或替换你的音轨', desc: '提取与转换音频、移除视频声音，或换上一条新音轨。' },
+  { id: 'volume', name: '音量调整', icon: 'volume', title: '把声音调到合适的大小', desc: '输入倍率，放大或减小音频。支持音频文件，也能调整视频中的声音。' },
   { id: 'resize', name: '尺寸与旋转', icon: 'resize', title: '找到画面的合适尺寸', desc: '调整分辨率、帧率和方向，让画面恰到好处。' },
   { id: 'gif', name: '生成 GIF', icon: 'gif', title: '让精彩，循环播放', desc: '选取一段短片，生成经过调色板优化的 GIF 动图。' },
   { id: 'snapshot', name: '导出画面', icon: 'image', title: '定格值得留下的一帧', desc: '定位视频中的瞬间，保存为原始尺寸的 PNG 或 JPG。' },
@@ -53,6 +55,7 @@ async function api(route, data, method = data === undefined ? 'GET' : 'POST') {
 function safeAction(fn) { return async (...args) => { try { await fn(...args); } catch (err) { toast(err.message, true); } }; }
 function defaultOptions(operation) {
   const defaults = { codec: 'h264', encoder: 'auto', quality: 'balanced', container: operation === 'remux' ? 'mkv' : 'mp4', mode: operation === 'concat' ? 'normalize' : 'accurate', height: operation === 'concat' ? '720' : 'original', fps: operation === 'gif' ? '12' : operation === 'concat' ? '30' : 'original', rotate: '0', flip: false, action: 'extract', format: operation === 'snapshot' ? 'png' : 'mp3', track: '0', volume: 100, width: '480', time: 0 };
+  if (operation === 'volume') return { ...defaults, gain: '1', protectPeaks: true, riskAcknowledged: false, format: 'auto', container: 'auto', output: 'video' };
   return operation === 'trim' ? { ...defaults, ...trimPresetDefaults('original', current()) } : defaults;
 }
 state.options = defaultOptions('trim');
@@ -63,7 +66,7 @@ function setOperation(id) {
   if (id === 'audio' && current()?.video) state.options.action = 'extract';
   const tool = tools.find(t => t.id === id);
   $('#breadcrumb-title').textContent = tool.name;
-  $('#page-title').innerHTML = `${esc(tool.title)}<span>。</span>`;
+  $('#page-title').textContent = tool.title;
   $('#page-description').textContent = tool.desc;
   $$('.nav-item').forEach(el => { el.classList.toggle('active', el.dataset.tool === id); el.setAttribute('aria-current', el.dataset.tool === id ? 'page' : 'false'); });
   $('#output-name').value = '';
@@ -133,10 +136,49 @@ function renderCover() {
     <figure class="cover-card"><figcaption><span>当前封面</span><small>${file?.cover ? '内嵌图片' : '未设置'}</small></figcaption><div class="cover-art">${file?.cover ? `<img src="/api/media/${file.id}/cover" alt="视频当前内嵌封面">` : `<div class="cover-placeholder">${icon('image', 32)}<strong>${file ? '没有内嵌封面' : '先添加视频素材'}</strong><span>${file ? '播放器可能使用视频画面作为缩略图' : '支持 MP4、M4V 和 MKV'}</span></div>`}</div></figure>
     <figure class="cover-card proposed"><figcaption><span>新封面</span><small>${cover ? '等待导出' : 'JPG / PNG'}</small></figcaption><button class="cover-art cover-picker" data-pick-cover aria-label="${cover ? '更换封面图片' : '选择封面图片'}">${cover ? `<img src="/api/covers/${cover.id}" alt="新封面预览"><span class="cover-hover">${icon('image', 14)} 更换图片</span>` : `<span class="cover-placeholder">${icon('plus', 30)}<strong>选择一张图片</strong><span>点击浏览本地图片</span></span>`}</button></figure></div><p class="cover-preview-note">${icon('info', 14)}此处展示文件中的内嵌封面。部分播放器和资源管理器会自行截取视频画面，可能不显示这张图片。</p>`;
 }
+function volumeControl() {
+  const o = state.options;
+  return `<div class="volume-intro"><span>${icon('volume', 18)}</span><div><strong>按倍率调整声音</strong><p>0.5 倍减半，2 倍放大；支持自定义小数。</p></div></div>
+    <div class="volume-control"><label for="option-gain">音量倍率</label><div class="gain-value"><input id="option-gain" data-option="gain" type="number" min="0" step="any" value="${esc(o.gain)}" aria-describedby="gain-description gain-error" inputmode="decimal"><span>倍</span><output id="gain-db"></output></div><p id="gain-description" class="gain-description"></p>
+    <div class="gain-presets">${VOLUME_PRESETS.map(([value, label]) => `<button data-gain-preset="${value}" aria-pressed="false"><strong>${value}×</strong><small>${label}</small></button>`).join('')}</div>
+    <input id="gain-slider" type="range" min="0" max="4" step="0.05" value="1" aria-label="常用音量倍率" aria-describedby="gain-slider-note"><div class="gain-scale"><span>0 · 静音</span><span>4 倍</span></div><p id="gain-slider-note" class="field-hint">滑块范围 0～4 倍；更多倍率可直接在数字框输入。</p><p id="gain-error" class="field-hint gain-error" role="alert" hidden></p></div>`;
+}
+function volumeOptions() {
+  const o = state.options, file = current(), includeVideo = file?.video && o.output !== 'audio';
+  const formats = [['auto', `自动 · ${volumeAudioFormat(file).toUpperCase()}`], ['mp3', 'MP3 · 192 kbps'], ['m4a', 'AAC / M4A · 192 kbps'], ['wav', 'WAV · 24-bit 无压缩'], ['flac', 'FLAC · 24-bit 无损编码']];
+  return `${selectField('track', '调整哪条音轨', file?.audio.length ? file.audio.map((a, i) => [String(i), `音轨 ${i + 1} · ${a.codec.toUpperCase()} · ${a.channels} 声道${a.language ? ` · ${a.language}` : ''}`]) : [['0', '等待带声音的素材']])}
+    <label class="peak-protection"><input type="checkbox" data-option="protectPeaks" ${o.protectPeaks ? 'checked' : ''}><span><strong>放大时保护峰值 <em>推荐</em></strong><small>压低过高的峰值，减少破音；实际增益可能小于设定倍率。可以关闭。</small></span></label>
+    <div id="volume-risk" class="volume-risk" hidden><strong>请确认本次设置</strong><p id="volume-risk-text"></p><label><input type="checkbox" data-option="riskAcknowledged" ${o.riskAcknowledged ? 'checked' : ''}> 我已了解，仍按当前设置处理</label></div>
+    <div class="option-divider"></div>${file?.video ? selectField('output', '输出内容', [['video', '保留视频 · 只调整声音'], ['audio', '仅导出所选音轨']]) : ''}
+    ${includeVideo ? selectField('container', '视频输出格式', [['auto', `自动 · ${volumeVideoFormat(file).toUpperCase()}`], ['mp4', 'MP4'], ['mkv', 'MKV']]) : selectField('format', '音频输出格式', formats)}
+    <p class="field-hint">${includeVideo ? '视频与其他音轨直接复制，所选音轨重新编码为 AAC。字幕、封面和附件不导出。' : '输出所选音轨。音量调整需要重新编码音频；WAV / FLAC 避免再次有损压缩。'}</p><p class="volume-listen-note">左侧播放原素材。处理完成后，在任务队列中预览新音量。倍率表示信号幅度，听感不一定按相同比例变化。</p>`;
+}
+function updateVolumeFeedback() {
+  if (state.operation !== 'volume' || !$('#option-gain')) return;
+  const o = state.options;
+  try {
+    const settings = volumeSettings(o), { gain, db, reasons, requiresConfirmation } = settings;
+    $('#gain-error').hidden = true; $('#option-gain').removeAttribute('aria-invalid');
+    $('#gain-db').textContent = db === null ? '静音' : `${db > 0 ? '+' : ''}${db.toFixed(2)} dB`;
+    $('#gain-description').textContent = gain === 0 ? '所选音轨将变为静音。' : gain === 1 ? '不改变增益；导出仍会重新编码音频。' : gain < 1 ? `减小到原来的 ${Number((gain * 100).toPrecision(6))}%。` : `放大到原来的 ${gain} 倍。`;
+    $('#gain-slider').value = Math.min(4, gain); $('#gain-slider').classList.toggle('custom-gain', gain > 4);
+    $('#gain-slider').setAttribute('aria-valuetext', gain > 4 ? `当前自定义 ${gain} 倍；滑块最高 4 倍` : `${gain} 倍`);
+    $('#gain-slider-note').textContent = gain > 4 ? `当前为自定义 ${gain} 倍。移动滑块会重新选择 0～4 倍。` : '滑块范围 0～4 倍；更多倍率可直接在数字框输入。';
+    $$('[data-gain-preset]').forEach(button => { const active = Number(button.dataset.gainPreset) === gain; button.classList.toggle('active', active); button.setAttribute('aria-pressed', active); });
+    $('#volume-risk').hidden = !requiresConfirmation; $('#volume-risk-text').textContent = reasons.join('；') + '。';
+    $('[data-option="riskAcknowledged"]').checked = o.riskAcknowledged;
+  } catch (err) {
+    $('#gain-error').textContent = err.message; $('#gain-error').hidden = false; $('#option-gain').setAttribute('aria-invalid', 'true');
+    $('#gain-db').textContent = '—'; $('#gain-description').textContent = '填写倍率后查看效果。'; $('#volume-risk').hidden = true;
+  }
+}
 function renderOptions() {
   const op = state.operation, o = state.options, file = current(); let html = '';
   $('.editing-panel').classList.toggle('cover-editing', op === 'cover');
+  $('.editing-panel').classList.toggle('volume-audio', op === 'volume' && Boolean(file) && !file.video);
   $('#cover-comparison').hidden = op !== 'cover';
+  $('#volume-controls').hidden = op !== 'volume';
+  $('#volume-controls').innerHTML = op === 'volume' ? volumeControl() : '';
   if (op === 'trim') {
     html = trimOptions();
   } else if (op === 'transcode' || op === 'resize') {
@@ -151,10 +193,9 @@ function renderOptions() {
     if (o.mode === 'normalize') html += `<div class="two-fields">${selectField('height', '输出高度', [['480', '480p'], ['720', '720p'], ['1080', '1080p'], ['2160', '2160p']])}${selectField('fps', '统一帧率', [['24', '24 fps'], ['30', '30 fps'], ['60', '60 fps']])}</div><div class="option-divider"></div>` + qualityFields('h264');
     html += `<p class="field-hint">已添加 ${state.files.length} 个素材。使用列表右侧箭头调整顺序。</p>`;
   } else if (op === 'audio') {
-    html = selectField('action', '音频操作', [['extract', '提取 / 转换音频'], ['mute', '移除视频中的音频'], ['volume', '调整音量'], ['replace', '替换视频音轨']]);
-    if (['extract', 'volume'].includes(o.action)) html += selectField('track', '源音轨', file?.audio.length ? file.audio.map((a, i) => [String(i), `音轨 ${i + 1} · ${a.codec.toUpperCase()} · ${a.channels} 声道${a.language ? ` · ${a.language}` : ''}`]) : [['0', '等待音频素材']]);
+    html = selectField('action', '音轨操作', [['extract', '提取 / 转换音频'], ['mute', '移除视频中的音频'], ['replace', '替换视频音轨']]);
+    if (o.action === 'extract') html += selectField('track', '源音轨', file?.audio.length ? file.audio.map((a, i) => [String(i), `音轨 ${i + 1} · ${a.codec.toUpperCase()} · ${a.channels} 声道${a.language ? ` · ${a.language}` : ''}`]) : [['0', '等待音频素材']]);
     if (o.action === 'extract') html += selectField('format', '音频格式', [['mp3', 'MP3 · 192 kbps'], ['m4a', 'AAC / M4A · 192 kbps'], ['wav', 'WAV · 无压缩'], ['flac', 'FLAC · 无损编码'], ['copy', 'MKA · 复制原音频流']]);
-    if (o.action === 'volume') html += `<div class="field"><label for="volume-range">音量倍率</label><div class="range-input-row"><input id="volume-range" type="range" min="0" max="400" step="5" value="${o.volume}" data-option="volume"><output>${o.volume}%</output></div><p class="field-hint">100% 为原音量。大幅增益可能产生失真。</p></div>`;
     if (o.action === 'replace') {
       const candidates = state.files.filter(f => f.id !== state.activeId && f.audio.length);
       if (!candidates.some(f => f.id === o.audioFileId)) o.audioFileId = candidates[0]?.id || '';
@@ -162,6 +203,8 @@ function renderOptions() {
       html += '<p class="field-hint">先选择原视频，再添加音频。新音轨从头开始；超出部分裁掉，不足部分补静音。</p>';
     }
     if (o.action !== 'extract') html += '<p class="field-hint">视频流保持原编码，输出为 MKV。</p>';
+  } else if (op === 'volume') {
+    html = volumeOptions();
   } else if (op === 'gif') {
     html = selectField('width', '动图宽度', [['320', '320 px · 小巧'], ['480', '480 px · 推荐'], ['640', '640 px'], ['960', '960 px']]) + selectField('fps', '流畅度', [['8', '8 fps · 小体积'], ['12', '12 fps · 推荐'], ['20', '20 fps · 更流畅'], ['25', '25 fps']]);
     html += `<div class="mode-description">${icon('info', 13)}<span>在左侧时间轴选择片段。建议 3～10 秒，最长 60 秒。GIF 不包含声音。</span></div>`;
@@ -175,23 +218,33 @@ function renderOptions() {
     html += `<div class="mode-description">${icon('info', 13)}<span>封装转换不会改变编码。AV1 转 H.264 请使用“转码与压缩”。</span></div><div class="option-divider"></div><p class="field-hint">保留所有音轨；字幕、附件和数据轨道不导出。WebM 通常需要 VP8 / VP9 / AV1 和 Opus / Vorbis。</p>`;
   }
   $('#operation-options').innerHTML = html;
+  updateVolumeFeedback();
+  $('#audio-stage h2').textContent = op === 'volume' ? '试听原音频' : '专注声音';
+  $('#audio-stage p').textContent = op === 'volume' ? '处理后的音量可在任务队列中预览' : '音频素材已就位';
+  $('#empty-stage small').textContent = op === 'volume' ? '可添加音频或视频 · MP3 / M4A / WAV / FLAC 等' : '或拖入文件 · MP4 / MOV / MKV / WEBM 等';
+  $('.workflow-note p').textContent = op === 'volume' && (!file?.video || o.output === 'audio') ? '每次处理都生成新文件。完成后可在任务队列试听，并打开保存位置。' : '每次处理都生成新文件。完成后可改名替换原素材，并选择保留备份或直接覆盖。';
   const advanced = $('#trim-advanced');
   advanced?.addEventListener('toggle', () => { if (advanced.isConnected) state.trimAdvancedOpen = advanced.open; });
   $('#timeline-section').hidden = !['trim', 'gif'].includes(op);
-  $('#media-details').hidden = ['trim', 'gif'].includes(op) || !file;
+  $('#media-details').hidden = ['trim', 'gif', 'volume'].includes(op) || !file;
   $('#seek-range').hidden = ['trim', 'gif'].includes(op) || !file;
   $('#set-start').hidden = $('#set-end').hidden = !['trim', 'gif'].includes(op);
   if (file) $('#media-details').innerHTML = [['编码', file.video?.codec.toUpperCase() || file.audio[0]?.codec.toUpperCase()], ['分辨率', file.video ? `${file.video.width} × ${file.video.height}` : '纯音频'], ['帧率', file.video ? `${file.video.fps.toFixed(2)} fps` : '—'], ['时长', time(file.duration, false)], ['文件大小', size(file.size)], ['音频', file.audio.length ? `${file.audio.length} 条音轨` : '无音频']].map(([key, value]) => `<div class="media-detail"><span>${key}</span><strong>${value}</strong></div>`).join('');
 }
 function optionChange(key, value) {
+  if (state.operation === 'volume' && key !== 'riskAcknowledged' && state.options[key] !== value) state.options.riskAcknowledged = false;
   state.options[key] = value;
   if (key === 'codec') state.options.encoder = compatibleDevice(state.options.encoder, value);
   if (key === 'action' || key === 'format' || key === 'container') $('#output-name').value = '';
-  if (['codec', 'mode', 'action', 'quality', 'format', 'rateControl'].includes(key)) { renderOptions(); renderFiles(); }
+  if (['codec', 'mode', 'action', 'quality', 'format', 'rateControl', 'output'].includes(key)) { renderOptions(); renderFiles(); }
   if ($('#trim-settings-summary')) $('#trim-settings-summary').textContent = trimSummary();
+  updateVolumeFeedback();
   schedulePlan();
 }
-$('#operation-options').addEventListener('click', event => {
+for (const optionsPanel of [$('#operation-options'), $('#volume-controls')]) {
+optionsPanel.addEventListener('click', event => {
+  const gainPreset = event.target.closest('[data-gain-preset]');
+  if (gainPreset) { $('#option-gain').value = gainPreset.dataset.gainPreset; optionChange('gain', gainPreset.dataset.gainPreset); }
   if (event.target.closest('#remove-cover')) { state.cover = null; renderOptions(); schedulePlan(); }
   const button = event.target.closest('[data-option-button]');
   if (button) optionChange(button.dataset.optionButton, button.dataset.value);
@@ -203,18 +256,20 @@ $('#operation-options').addEventListener('click', event => {
   }
   if (event.target.closest('#snapshot-current')) { state.options.time = Math.min(player().currentTime || 0, Math.max(0, (current()?.duration || 0) - .04)); renderOptions(); schedulePlan(); }
 });
-$('#operation-options').addEventListener('change', event => {
+optionsPanel.addEventListener('change', event => {
   if (event.target.dataset.trimPreset) { setTrimPreset(event.target.dataset.trimPreset); return; }
   if (event.target.dataset.option) optionChange(event.target.dataset.option, event.target.type === 'checkbox' ? event.target.checked : event.target.value);
 });
-$('#operation-options').addEventListener('input', event => {
+optionsPanel.addEventListener('input', event => {
+  if (event.target.id === 'gain-slider') { $('#option-gain').value = event.target.value; optionChange('gain', event.target.value); return; }
   if (event.target.type === 'range') { event.target.nextElementSibling.textContent = `${event.target.value}${event.target.dataset.option === 'volume' ? '%' : ''}`; optionChange(event.target.dataset.option, event.target.value); }
   else if (event.target.type === 'number' && event.target.dataset.option) optionChange(event.target.dataset.option, event.target.value);
 });
+}
 
 function renderFiles() {
   const file = current();
-  $('#source-title').textContent = file ? file.name : '从一个视频开始';
+  $('#source-title').textContent = file ? file.name : state.operation === 'volume' ? '从一段声音开始' : '从一个视频开始';
   $('#source-title').title = file?.path || '';
   $('#source-detail').textContent = file ? `${file.video ? `${file.video.codec.toUpperCase()}  ·  ${file.video.width} × ${file.video.height}` : '音频素材'}  ·  ${time(file.duration, false)}  ·  ${size(file.size)}${file.imported ? '  ·  本地临时副本' : ''}` : '直接读取本地文件，保留原始素材';
   $('#file-list').hidden = !state.files.length || (state.files.length === 1 && state.operation !== 'concat');
@@ -223,6 +278,7 @@ function renderFiles() {
 function selectFile(id) {
   $('#video').pause(); $('#audio').pause();
   state.activeId = id; const file = current();
+  state.options.riskAcknowledged = false;
   if (state.operation === 'trim') {
     state.trimProfiles = {};
     const device = state.options.encoder;
@@ -376,11 +432,11 @@ async function updatePlan() {
     $('#output-name').placeholder = (plan.outputPath.split(/[\\/]/).pop() || '').replace(new RegExp(`\\.${plan.extension}$`), '');
     $('#export-duration').textContent = state.operation === 'snapshot' ? '1 帧' : time(plan.duration);
     $('#encoder-description').textContent = plan.encoder;
-    const warnings = plan.warnings.filter(w => !(state.operation === 'trim' && state.options.trimPreset === 'original' && w.startsWith('保持原编码按')));
+    const warnings = plan.warnings.filter(w => !(state.operation === 'trim' && state.options.trimPreset === 'original' && w.startsWith('保持原编码按')) && !plan.volume?.reasons.includes(w));
     $('#plan-warnings').innerHTML = warnings.map(w => `<div class="plan-warning">${esc(w)}</div>`).join('');
     const estimate = $('#trim-size-estimate');
     if (estimate) { estimate.hidden = !plan.estimatedSize; estimate.textContent = plan.estimatedSize ? `预计约 ${size(plan.estimatedSize)} · 按目标码率估算，实际可能浮动` : ''; }
-    $('#export-button').disabled = !state.system.ready || state.busy;
+    $('#export-button').disabled = !state.system.ready || state.busy || (plan.volume?.requiresConfirmation && !state.options.riskAcknowledged);
   } catch (err) { if (sequence !== planSequence) return; state.plan = null; state.commandError = err.message; $('#command-text').textContent = err.message; $('#command-extras').innerHTML = ''; $('#plan-warnings').innerHTML = `<div class="plan-warning error">${esc(err.message)}</div>`; $('#export-button').disabled = true; }
 }
 $('#output-name').addEventListener('input', schedulePlan); $('#output-dir').addEventListener('input', schedulePlan);
@@ -494,7 +550,7 @@ function jobMarkup(job, openLogs) {
   else if (job.resultCleanedAt) actions = `<span class="text-button muted">${esc(job.resultRemovalReason || '该处理版本已清理，任务记录保留。')}</span>`;
   return `<article class="job-card">
     <div class="job-title-row"><strong>${esc(job.title)} <span class="muted">· ${new Date(job.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span></strong><span class="job-status ${job.status}">${statusLabels[job.status] || job.status}</span></div>
-    <div class="job-path">${esc(job.outputPath)}</div><div class="job-source">${esc(job.sourceNames.join(' + '))} · ${esc(job.encoder)}</div>
+    <div class="job-path">${esc(job.outputPath)}</div><div class="job-source">${esc(job.sourceNames.join(' + '))} · ${esc(job.encoder)}${job.volume ? ` · ${esc(job.volume.gain)} 倍${job.volume.limiter ? ' · 峰值保护' : ''}` : ''}</div>
     ${['running', 'queued'].includes(job.status) ? `<div class="progress-bar"><div class="progress-fill" style="width:${Number(job.progress) || 0}%"></div></div><div class="job-progress"><span>${job.progress.toFixed(1)}% · ${esc(job.speed || '等待进度')}</span><span>${job.duration ? time(job.duration, false) : '1 帧'}</span></div>` : ''}
     ${job.error ? `<div class="job-error">${esc(job.error)}</div>` : ''}${backupMarkup(job)}
     <div class="job-actions">${actions}</div>
